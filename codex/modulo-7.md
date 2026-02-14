@@ -274,8 +274,6 @@ codex mcp add openaiDocs \
 codex mcp list
 # Esperado: openaiDocs listado con URL
 
-codex mcp show openaiDocs
-# Muestra configuración completa del servidor
 ```
 
 ### Paso 3: Añadir instrucciones en AGENTS.md
@@ -374,3 +372,361 @@ ls /tmp/codex-lab07 2>/dev/null \
   && echo "ERROR: aún existe" \
   || echo "OK: limpio"
 ```
+
+## Laboratorio 7B — Doble MCP: Context7 (STDIO) + OpenAI Docs (HTTP)
+
+> **Duración estimada:** 45 minutos
+> **Prerrequisitos:** Codex CLI instalado y autenticado,
+> Node.js 18+ (para npx), Git instalado.
+> **Referencia:**
+> [MCP](https://developers.openai.com/codex/mcp/) |
+> [Context7](https://github.com/upstash/context7) |
+> [Docs MCP](https://developers.openai.com/resources/docs-mcp/)
+
+---
+
+## Objetivo
+
+Configurar **dos servidores MCP de tipos diferentes** (STDIO
+y HTTP), restringir herramientas con `enabled_tools` /
+`disabled_tools`, escribir instrucciones en AGENTS.md y
+verificar que Codex usa ambos correctamente para generar
+código con documentación actualizada.
+
+| Servidor | Transporte | Auth | Propósito |
+| --- | --- | --- | --- |
+| Context7 | STDIO (local) | No | Docs de librerías (FastAPI, React, etc.) |
+| OpenAI Docs | HTTP (remoto) | No | Docs de la API de OpenAI |
+
+---
+
+## Paso 1: Crear proyecto base (3 min)
+
+```bash
+mkdir /tmp/codex-lab07b && cd /tmp/codex-lab07b
+git init
+
+# Entorno virtual Python
+python3 -m venv .venv
+source .venv/bin/activate
+pip install pytest flake8
+
+cat > .gitignore << 'EOF'
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+EOF
+
+# Código base: API que usa FastAPI + OpenAI
+mkdir -p src tests
+
+cat > src/main.py << 'PYEOF'
+"""
+API REST que usa FastAPI y la API de OpenAI.
+TODO: Los endpoints están vacíos, Codex los implementará
+consultando la documentación actualizada via MCP.
+"""
+
+def create_app():
+    """TODO: Crear app FastAPI con endpoint /chat."""
+    raise NotImplementedError
+
+def call_openai(prompt: str) -> str:
+    """TODO: Llamar a la API Responses de OpenAI."""
+    raise NotImplementedError
+PYEOF
+
+cat > tests/test_main.py << 'PYEOF'
+"""Tests básicos para verificar que la implementación existe."""
+
+def test_create_app_exists():
+    from src.main import create_app
+    assert callable(create_app)
+
+def test_call_openai_exists():
+    from src.main import call_openai
+    assert callable(call_openai)
+PYEOF
+
+PYTHONPATH=. pytest tests/ -v
+git add -A && git commit -m "chore: scaffold lab07b"
+```
+
+---
+
+## Paso 2: Añadir servidores MCP vía CLI (5 min)
+
+Configurar ambos servidores con `codex mcp add`:
+
+```bash
+# 1. Context7 — STDIO (subproceso local, npx lo descarga)
+codex mcp add context7 -- npx -y @upstash/context7-mcp
+
+# 2. OpenAI Docs — HTTP (servidor remoto)
+codex mcp add openaiDocs \
+  --url https://developers.openai.com/mcp
+
+# Verificar que ambos están configurados
+codex mcp list
+# Esperado:
+#   context7     (stdio)  npx -y @upstash/context7-mcp
+#   openaiDocs   (http)   https://developers.openai.com/mcp
+
+# Ver detalle de cada uno
+codex mcp show context7
+codex mcp show openaiDocs
+```
+
+> **¿Qué acaba de pasar?** `codex mcp add` ha escrito
+> entradas en `~/.codex/config.toml`. Puedes verificarlo:
+>
+> ```bash
+> cat ~/.codex/config.toml | grep -A3 "mcp_servers"
+> ```
+
+---
+
+## Paso 3: Configurar MCP a nivel de proyecto (5 min)
+
+En vez de depender de la config global, vamos a definir
+los servidores MCP **en el proyecto** (versionable con Git)
+y aplicar restricciones de herramientas:
+
+```bash
+mkdir -p .codex
+
+cat > .codex/config.toml << 'EOF'
+# Sandbox y aprobaciones para el lab
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = false
+
+# MCP Server 1: Context7 (STDIO)
+# Documentación actualizada de librerías open-source
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]
+startup_timeout_sec = 30
+
+# MCP Server 2: OpenAI Docs (HTTP)
+# Documentación oficial de la API de OpenAI
+[mcp_servers.openaiDocs]
+url = "https://developers.openai.com/mcp"
+EOF
+
+git add .codex/ && git commit -m "config: doble MCP + sandbox"
+```
+
+**Conceptos aplicados:**
+
+- `startup_timeout_sec = 30` para Context7 (npx puede tardar
+  en descargar el paquete la primera vez).
+- Ambos servidores definidos a nivel de proyecto: todo el
+  equipo los hereda al clonar el repo (si el proyecto está
+  trusted).
+- `network_access = false` en el sandbox: Codex no puede
+  hacer requests de red *desde comandos shell*, pero los
+  servidores MCP HTTP sí funcionan (son conexiones del
+  cliente MCP, no del sandbox).
+
+---
+
+## Paso 4: Escribir AGENTS.md con instrucciones MCP (3 min)
+
+Para que Codex use los servidores MCP automáticamente:
+
+```bash
+cat > AGENTS.md << 'EOF'
+# Project Instructions
+
+## MCP Servers Available
+- **context7**: Use this MCP server to look up current
+  documentation for ANY open-source library (FastAPI,
+  React, Django, etc.) before writing code that uses
+  that library. Always prefer MCP docs over internal
+  knowledge for API signatures and parameters.
+- **openaiDocs**: Use this MCP server for ANY question
+  about the OpenAI API, Codex, or Apps SDK. Always
+  consult this before writing OpenAI API calls.
+
+## Rules
+- When implementing code that uses an external library,
+  ALWAYS consult the appropriate MCP server first.
+- Use the latest API patterns from the documentation.
+- Include error handling in all implementations.
+EOF
+
+git add AGENTS.md && git commit -m "docs: AGENTS.md con MCP"
+```
+
+---
+
+## Paso 5: Probar en el TUI (15 min)
+
+```bash
+cd /tmp/codex-lab07b
+source .venv/bin/activate
+codex --full-auto
+```
+
+### TEST 1: Verificar servidores activos
+
+Escribir en el TUI:
+
+```text
+/mcp
+```
+
+**Esperado:** Ambos servidores (`context7` y `openaiDocs`)
+aparecen listados con sus herramientas disponibles.
+
+### TEST 2: Usar Context7 (STDIO) para FastAPI
+
+Escribir en el TUI:
+
+```text
+Implementa create_app() en @src/main.py:
+- Crea una app FastAPI con un endpoint POST /chat
+  que reciba {"prompt": "texto"} y devuelva
+  {"response": "texto"}.
+- Consulta la documentación de FastAPI para usar la
+  sintaxis correcta y actualizada.
+```
+
+**Observar:**
+
+1. Codex invoca herramientas de `context7` para buscar
+   documentación de FastAPI.
+2. El código generado usa la sintaxis actual de FastAPI
+   (no versiones obsoletas).
+3. Codex debería crear el endpoint con Pydantic models
+   según la documentación.
+
+### TEST 3: Usar OpenAI Docs (HTTP) para la API de OpenAI
+
+Escribir en el TUI:
+
+```text
+Implementa call_openai() en @src/main.py:
+- Usa la API Responses de OpenAI.
+- Consulta la documentación para usar los parámetros
+  correctos y actualizados.
+- Incluye error handling.
+```
+
+**Observar:**
+
+1. Codex invoca herramientas de `openaiDocs` para
+   consultar la documentación de la API Responses.
+2. El código usa los parámetros actuales (no endpoints
+   deprecated).
+
+### TEST 4: Verificar que ambos MCP se usaron
+
+Escribir en el TUI:
+
+```text
+Conecta create_app() con call_openai(): el endpoint
+POST /chat debe llamar a call_openai() con el prompt
+recibido y devolver la respuesta. Añade un test en
+tests/test_main.py que verifique que el endpoint
+existe y responde (puedes mockear call_openai).
+```
+
+**Observar:** Codex integra ambas implementaciones y
+ejecuta los tests como validación.
+
+---
+
+## Paso 6: Experimentar con enabled_tools (5 min)
+
+Para demostrar la restricción de herramientas, modifica
+la config del proyecto:
+
+```bash
+cat >> .codex/config.toml << 'EOF'
+
+# Ejemplo: deshabilitar una herramienta específica
+# (descomenta para probar)
+# [mcp_servers.context7]
+# disabled_tools = ["searchDocumentation"]
+
+# Ejemplo: deshabilitar un servidor sin borrarlo
+# [mcp_servers.context7]
+# enabled = false
+EOF
+
+git add .codex/ && git commit -m "config: ejemplo restricciones"
+```
+
+**Ejercicio para el alumno:** Descomentar `enabled = false`
+para context7, reiniciar Codex, y verificar con `/mcp` que
+solo aparece `openaiDocs`. Esto demuestra cómo activar/
+desactivar servidores MCP sin borrar la configuración.
+
+> **Nota:** Para conocer los nombres exactos de las tools
+> de un servidor, usar `/mcp` en el TUI o
+> `codex mcp show context7 --json`.
+
+---
+
+## Paso 7: Deshabilitar vía CLI (alternativa)
+
+También se puede deshabilitar un servidor sin editar TOML:
+
+```bash
+# Deshabilitar context7 temporalmente para esta sesión
+codex --config mcp_servers.context7.enabled=false
+
+# O para una sesión específica:
+codex --config mcp_servers.context7.enabled=false \
+      --full-auto
+```
+
+---
+
+## Resultado esperado
+
+| Verificación | Resultado |
+| --- | --- |
+| `/mcp` muestra 2 servidores | context7 (STDIO) + openaiDocs (HTTP) |
+| Context7 consultado para FastAPI | Código usa sintaxis actual |
+| OpenAI Docs consultado para API | Parámetros actualizados |
+| `enabled = false` oculta servidor | `/mcp` solo muestra el otro |
+| Tests pasan | `PYTHONPATH=. pytest tests/ -v` |
+
+---
+
+## Paso 8: Limpieza (Protocolo Obligatorio)
+
+```bash
+# 1. Desactivar venv
+deactivate
+
+# 2. Eliminar MCP servers de config global
+#    (solo si los añadiste con codex mcp add en Paso 2)
+codex mcp remove context7
+codex mcp remove openaiDocs
+
+# 3. Borrar proyecto
+rm -rf /tmp/codex-lab07b
+
+# 4. Verificar
+ls /tmp/codex-lab07b 2>/dev/null \
+  && echo "ERROR: aún existe" \
+  || echo "OK: limpio"
+
+# 5. Verificar que config global quedó limpia
+codex mcp list
+# Esperado: sin context7 ni openaiDocs
+```
+
+> **Nota sobre la limpieza:** El Paso 2 añadió servidores
+> a `~/.codex/config.toml` (global). El Paso 3 los
+> redefinió en `.codex/config.toml` (proyecto). Al borrar
+> el proyecto se elimina la config de proyecto, pero la
+> global persiste. Por eso el `codex mcp remove` es
+> necesario.
