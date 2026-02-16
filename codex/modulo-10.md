@@ -1,168 +1,278 @@
-# Módulo 10 — CI/CD, Control de Versiones y Operaciones (DevOps con IA)
+## Módulo 10 — CI/CD, control de versiones y operación en equipos
 
-**Duración estimada:** 90 minutos (45 min teoría + 45 min laboratorio)
-**Enfoque:** Automatización, Gobernanza y Cultura DevOps.
+### Propósito del módulo
 
-## 1. Objetivos de Aprendizaje
-
-1. **Integración en el Pipeline:** Dejar de usar la IA solo en el IDE ("localhost") y empezar a usarla como un actor en el flujo de CI/CD (GitHub Actions, GitLab CI).
-2. **Estandarización de Git:** Utilizar la IA para imponer convenciones estrictas (Conventional Commits) y generar descripciones de Pull Requests (PR) ricas en contexto.
-3. **El Ciclo "Fix-until-Green":** Configurar agentes autónomos supervisados que intenten arreglar fallos de tests en el CI automáticamente, con límites de intentos para evitar costes infinitos.
+Aprender a integrar Codex (especialmente vía CLI y app) en flujos reales de trabajo en equipo: Git, PRs, revisiones y CI/CD, manteniendo **seguridad**, **trazabilidad** y **control humano**. El objetivo no es “automatizar por automatizar”, sino **reducir trabajo repetible** y **subir la calidad** sin perder gobernanza.
 
 ---
 
-## 2. Contenidos Teóricos
+## Objetivos de aprendizaje
 
-### 2.1. Codex en el Flujo de Trabajo (Workflow)
+Al finalizar el módulo, el/la participante será capaz de:
 
-La IA no debe ser un "ente mágico" que toca el código sin control. Debe tratarse como un **Desarrollador Junior** automatizado.
-
-* **Modelo de Ramas:** La IA nunca debe hacer push a `main`. Siempre debe trabajar en `feature/` o `fix/`.
-* **La Regla del Árbitro (CI):** La IA propone cambios, pero el sistema de Integración Continua (CI) es la autoridad final. Si el CI está rojo, el cambio de la IA se rechaza, independientemente de lo convincente que sea su explicación.
-
-### 2.2. Automatización con CLI y Hooks
-
-La CLI de Codex (`codex`) es idempotente y scriptable, lo que permite integrarla en:
-
-* **Pre-commit Hooks:** Antes de que el humano haga commit, la IA revisa si hay secretos expuestos o si los nombres de variables cumplen el estándar.
-* **CI Reviewer:** Un paso en el pipeline donde **GPT-5.1-Codex-Max** lee el diff del PR y comenta sugerencias de seguridad o arquitectura antes de que un humano pierda tiempo revisándolo.
-
-### 2.3. Patrones de Colaboración
-
-* **"Draft PR First":** La IA abre el PR en modo borrador con un resumen de lo que hizo, los archivos que tocó y *por qué*.
-* **Conventional Commits:** La IA debe ser instruida (vía `SKILL.md`) para escribir mensajes semánticos: `feat(auth): add jwt support` en lugar de `fix code`.
+1. **Integrar Codex** en flujos Git + CI/CD de forma **segura** y **repetible**.
+2. **Estandarizar** prácticas de control de versiones: ramas, commits, PRs, plantillas y revisiones.
+3. Diseñar automatizaciones con el patrón **“Codex propone, humano aprueba”**.
+4. Implementar un modo operativo **“fix CI”** (iteración hasta verde) con límites y guardrails.
+5. Reducir riesgos habituales: reescritura de historial, merges sin revisión, cambios en carpetas sensibles, secretos expuestos.
 
 ---
 
-## 3. Buenas Prácticas
+## Teoría
 
-1. **Plantillas de PR Corporativas:** Configura la IA para que rellene tu plantilla de Markdown (`.github/PULL_REQUEST_TEMPLATE.md`). Debe marcar qué tests manuales realizó.
-2. **Límites de Reintento (Circuit Breaker):** Si configuras un agente para "arreglar el build", limítalo a 3 intentos. Si falla 3 veces, asigna la tarea a un humano. Evita bucles infinitos de facturación.
-3. **Scopes Protegidos:** Usa archivos `.codexignore` o configuraciones de seguridad para prohibir terminantemente que la IA toque carpetas como `.github/workflows/` o `/terraform/prod/`.
+### 1) Codex CLI como pieza operable en automatización
 
----
+Codex CLI puede ejecutarse de forma consistente para tareas repetibles: generar cambios, proponer diffs, actualizar tests, y preparar texto de PR bajo reglas de equipo. En CI/CD, su papel típico no es “mergear”, sino **asistir** y **producir artefactos revisables** (diff, tests, documentación, checklist).
+Referencia: [OpenAI Developers][15]
 
-## 4. Errores Comunes
+**Enfoque recomendado**
 
-1. **"Blind Merge":** Automatizar que si el CI pasa, el PR se apruebe y fusione solo. **Peligro:** La IA puede borrar un test para que el pipeline pase. La revisión humana del diff sigue siendo obligatoria.
-2. **Commit Spam:** Dejar que la IA haga un commit por cada cambio menor (typo, formato), ensuciando el historial. Instrúyela para hacer `squash` o commits atómicos.
-3. **Reescritura de Historial:** Permitir que la IA haga `git push --force` en ramas compartidas.
-
----
-
-## 5. Casos de Uso Reales
-
-* **Generación de Changelog:** Un script que lee los diffs de los últimos 20 commits y genera un `CHANGELOG.md` resumido para humanos, agrupado por funcionalidades.
-* **Migración de Dependencias:** Un bot que detecta una vulnerabilidad en `package.json`, crea una rama, actualiza la librería, corre los tests, corrige las roturas menores y abre el PR listo para revisión.
+* **Local/Dev**: Codex prepara cambios y el humano revisa.
+* **CI**: valida (lint/test/build/security). CI es el árbitro.
+* **PR**: vehículo de trazabilidad (qué/por qué/cómo probar).
 
 ---
 
-## 6. Laboratorio (L10) — “El PR Perfecto”
+### 2) Configuración Git en la app (y guardrails de equipo)
 
-**Escenario:** Simularemos un entorno de trabajo real. Crearemos una feature, aseguraremos que pase un pipeline de calidad simulado (linter + tests) y generaremos el artefacto de entrega (PR) automáticamente.
+En la app (multi-agente), suelen existir configuraciones orientadas a:
 
-### Paso 1: Setup del Repo y el "Pipeline"
+* **Branch naming** (convenciones de ramas).
+* Restricciones sobre **force push**.
+* Prompts / plantillas para **commits** y **PRs**.
+* Límites para reintentos y alcance de cambios.
 
-Crearemos un script que simula ser Jenkins o GitHub Actions.
+La idea es que la herramienta trabaje **dentro de la política** del equipo.
+Referencia: [OpenAI Developers][16]
 
-```bash
-mkdir codex-lab10
-cd codex-lab10
-git init
+---
 
-# 1. Crear el script de CI simulado
-cat <<EOF > ci_pipeline.sh
-#!/bin/bash
-echo ">>> Ejecutando Pipeline de CI..."
-# Simula chequeo de estilo: Falla si hay funciones sin docstrings
-if grep -q "def " calculator.py && ! grep -q '"""' calculator.py; then
-    echo "[ERROR] Linter: Faltan docstrings en las funciones."
-    exit 1
-fi
-# Simula tests: Falla si no existe el archivo de tests
-if [ ! -f test_calculator.py ]; then
-    echo "[ERROR] Tests: No se encontró test_calculator.py"
-    exit 1
-fi
-# Ejecuta tests reales
-python3 -m unittest test_calculator.py
-EOF
-chmod +x ci_pipeline.sh
+### 3) Patrones operativos clave
 
-# 2. Commit inicial
-touch README.md
-git add .
-git commit -m "chore: initial commit"
+#### a) “Codex propone, humano aprueba”
 
-```
+* Codex produce: cambios + explicación + cómo probar + riesgos.
+* El humano: revisa diff, ejecuta pruebas, valida impacto, aprueba/ajusta.
 
-### Paso 2: Desarrollo de la Feature con IA
+#### b) PRs pequeños
 
-Pedimos a la IA que cree una calculadora básica.
+* Menos superficie → mejor revisión → menos conflictos → merges más seguros.
+* Regla práctica: **un PR = un propósito** (bugfix, refactor acotado, feature slice).
 
-**Instrucción:**
+#### c) CI como árbitro (“no merge sin verde”)
 
-```bash
-codex do "Crea un archivo 'calculator.py' con funciones sumar y restar. Crea también 'test_calculator.py'. NO añadas docstrings todavía (quiero que falle el CI)."
+* El CI tiene la última palabra: si no está verde, no se integra.
+* La mejora: convertir “verde” en requisito y diseñar el trabajo para llegar ahí rápido.
 
-```
+---
 
-### Paso 3: El Fallo del CI (Feedback Loop)
+## Buenas prácticas
 
-Ejecutamos nuestro pipeline simulado.
+### 1) Plantilla corporativa para commits y PRs
 
-```bash
-./ci_pipeline.sh
-# Resultado esperado: [ERROR] Linter: Faltan docstrings...
+#### Plantilla de commit (ejemplo)
 
-```
+Formato recomendado (adaptable a Conventional Commits si aplica):
 
-### Paso 4: Modo "Auto-Fix"
+* `tipo(área): resumen`
+* Cuerpo: **qué**, **por qué**, **impacto**, **cómo probar**
+* Referencias: ticket, incidente, RFC, etc.
 
-Ahora usamos la IA para arreglar el fallo basándose en el output del CI.
+Ejemplo:
 
-**Instrucción:**
+* `fix(api): corrige validación de payload vacío`
+* Cuerpo:
 
-```bash
-# Simulamos pasar el log de error a la IA
-./ci_pipeline.sh > ci_log.txt 2>&1
-codex do "El pipeline de CI ha fallado. Lee 'ci_log.txt' y arregla el código para que pase."
+  * Qué: evita NPE en el handler X
+  * Por qué: aparecía en requests sin campo Y
+  * Cómo probar: `pytest -k test_payload_vacio`
 
-```
+#### Plantilla de PR (ejemplo)
 
-*Acción de la IA:* Leerá el error de "Faltan docstrings", editará `calculator.py` para añadirlos y quizás ajuste los tests.
+**Título**: `[Área] Acción breve (resultado)`
+**Descripción**:
 
-**Verificación:**
+* **Qué cambia**
+* **Por qué**
+* **Cómo probar**
+* **Riesgos/impacto**
+* **Checklist**
 
-```bash
-./ci_pipeline.sh
-# Resultado esperado: OK (Tests passed)
+Checklist sugerido:
 
-```
+* [ ] Tests añadidos/actualizados
+* [ ] Lint/format OK
+* [ ] CI verde
+* [ ] Documentación / CHANGELOG (si aplica)
+* [ ] No toca carpetas sensibles (o justificación)
+* [ ] Plan de rollback
 
-### Paso 5: Generación del PR y Commits
+---
 
-Una vez el código es válido, formalizamos la entrega.
+### 2) Hooks y protecciones (“Codex no toca”)
 
-**Instrucción:**
+**Pre-commit / pre-push** (recomendado):
 
-```bash
-# 1. Pedirle que haga los commits semánticos
-codex do "Genera los comandos git para hacer commit de los cambios usando la convención 'Conventional Commits'. No ejecutes, solo muestra."
+* Lint/format
+* Tests rápidos (smoke)
+* Escaneo de secretos (si está disponible)
+* Validaciones de convenciones (nombres de ramas, mensajes, etc.)
 
-# 2. Generar la descripción del PR
-codex do "Genera una descripción para el Pull Request en formato Markdown. Incluye: Resumen, Cambios, Checklist de validación y comandos para probarlo."
+**Carpetas sensibles (ejemplo de política)**
 
-```
+* `infra/`, `terraform/`, `.github/workflows/`, `security/`, `secrets/`, `prod/`
+* Regla: Codex puede **leer** pero no **editar** sin una aprobación explícita (o sin un label especial / CODEOWNERS).
 
-**Resultado Esperado:**
-Un texto listo para copiar y pegar en GitHub/GitLab que explica profesionalmente qué se hizo y confirma que los tests pasan.
+---
 
-### Paso 6: Limpieza Final
+### 3) Modo “fix CI” con límites
 
-```bash
-cd ..
-rm -rf codex-lab10
-echo "Curso finalizado. ¡Felicidades!"
+Objetivo: iterar rápidamente hasta CI verde, sin entrar en bucles.
 
-```
+**Reglas de operación**
+
+* Máximo N intentos (por ejemplo 3).
+* Cada intento debe:
+
+  1. Identificar fallo (log/stacktrace).
+  2. Proponer corrección mínima.
+  3. Actualizar tests si corresponde.
+  4. Re-ejecutar pipeline local o equivalente.
+* Si falla al tercer intento: escalar a humano (investigación manual / pairing).
+
+---
+
+## Errores comunes (y cómo evitarlos)
+
+1. **Dejar que el agente reescriba historial (force push / rebase) sin política**
+
+   * Mitigación: ramas protegidas, PR required, bloquear force push, exigir revisión.
+
+2. **Automatizar merges sin revisión**
+
+   * Mitigación: required reviewers + CODEOWNERS + “no merge sin verde” + restricciones de permisos.
+
+3. **PRs gigantes**
+
+   * Mitigación: dividir por slices, feature flags, migración incremental, PRs por módulo.
+
+4. **Cambios en CI/workflows sin control**
+
+   * Mitigación: carpeta sensible + revisión obligatoria por owners de plataforma.
+
+5. **Fuga de secretos (tokens en logs o commits)**
+
+   * Mitigación: secret scanning + políticas de no-volcado + variables de entorno + rotación.
+
+---
+
+## Casos reales
+
+### Migración gradual (patrón recomendado)
+
+**Situación**: modernización de un repo o migración de librerías.
+**Estrategia**:
+
+* PRs por módulos/capas (por ejemplo `core/`, `api/`, `ui/`).
+* En cada PR:
+
+  * cambios mínimos,
+  * tests y/o adaptación de tests,
+  * CI como gate,
+  * rollback claro (revert del PR o feature flag).
+* Resultado: avance continuo con riesgo acotado.
+
+---
+
+# Laboratorio (L10) — “PR listo para producción”
+
+## Objetivo
+
+Producir un PR con:
+
+* checklist estándar,
+* pruebas,
+* CI verde,
+* descripción reproducible,
+* y políticas de equipo respetadas.
+
+## Preparación
+
+Crea un repo de laboratorio: `codex-lab10/` con:
+
+* Código mínimo (ej. Node/Python/Go/Java) + 1-2 tests.
+* Un pipeline simple (GitHub Actions o simulación local).
+* Hook de pre-commit (opcional pero recomendado).
+
+**Ejemplo de pipeline mínimo (conceptual)**
+
+* `lint`
+* `test`
+* `build` (si aplica)
+
+## Pasos
+
+### 1) Crear repo y pipeline
+
+* Inicializa repo y añade el workflow.
+* Añade una rama base protegida (si simulas en remoto).
+
+### 2) Pedir a Codex un cambio completo “production-ready”
+
+Solicítale explícitamente:
+
+* cambio funcional pequeño,
+* tests,
+* ajustes de CI si hicieran falta,
+* y texto de PR con plantilla + checklist.
+
+**Prompt sugerido (adaptable)**
+
+* “Implementa X de forma mínima. Añade/actualiza tests. Asegura que lint+tests pasen. Actualiza CI si es necesario. Devuélveme: diff, comandos para probar, y texto de PR siguiendo esta plantilla: (pegar plantilla). No modifiques carpetas sensibles.”
+
+### 3) Ejecutar pipeline y corregir hasta verde
+
+* Ejecuta localmente lo equivalente al CI (o lanza CI remoto).
+* Si falla: modo “fix CI” con límite de intentos.
+* Documenta en el PR qué falló y qué se hizo.
+
+### 4) Revisar como si fuese producción
+
+Checklist de revisión final:
+
+* ¿El PR es pequeño y claro?
+* ¿Los tests cubren el cambio?
+* ¿Hay instrucciones reproducibles?
+* ¿No se han tocado carpetas sensibles sin necesidad?
+* ¿CI está verde?
+
+## Resultado esperado
+
+Un PR reproducible con:
+
+* CI verde,
+* tests,
+* descripción estándar,
+* checklist completa,
+* y trazabilidad del “cómo probar”.
+
+## Limpieza
+
+* Borrar el repo `codex-lab10/`.
+* Si se usaron tokens/credenciales: **revocarlos** y verificar que no quedaron en commits/logs.
+
+---
+
+## Entregables del módulo
+
+* Plantilla de PR y commit acordada por el equipo.
+* Política “carpetas sensibles / Codex no toca”.
+* Guía operativa “fix CI” con límites.
+* Laboratorio L10 completado con PR “production-ready”.
+
+---
+
+### Referencias
+
+* [OpenAI Developers][15]
+* [OpenAI Developers][16]
