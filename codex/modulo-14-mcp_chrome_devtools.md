@@ -39,7 +39,7 @@ El Chrome DevTools Protocol es la API que permite a herramientas externas comuni
 
 El servidor MCP `chrome_devtools` actúa como traductor: escucha las invocaciones de tools MCP por parte de Codex y las convierte en llamadas CDP al navegador.
 
-```
+```text
 Codex CLI
     │
     │ MCP (STDIO / HTTP)
@@ -151,8 +151,6 @@ google-chrome \
 curl -s http://localhost:9222/json | python3 -m json.tool | head -30
 ```
 
-
-
 #### Opción C: Windows + WSL2 (Chrome en Windows, Codex en WSL) — con `portproxy` (recomendado en entornos WSL)
 
 Si estás ejecutando **Codex dentro de WSL2** pero quieres depurar un **Google Chrome que corre en Windows**, la forma más reproducible es:
@@ -217,7 +215,6 @@ netsh interface portproxy delete v4tov4 `
 netsh interface portproxy show all
 ```
 
-
 ##### Paso 2 — Comprueba conectividad desde **WSL**
 
 ```bash
@@ -241,7 +238,6 @@ enabled = true
 ```
 
 > Consejo: si `codex` no encuentra `npx` o usa otra versión de Node, usa rutas absolutas (`which node`, `which npx`) o fija Node 20+ con `nvm` en WSL.
-
 
 ### 3.5 Selección de servidor MCP (criterios corporativos)
 
