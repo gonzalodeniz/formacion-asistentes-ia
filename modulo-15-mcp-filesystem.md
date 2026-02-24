@@ -1,6 +1,6 @@
 # MÓDULO AVANZADO — MCP con Filesystem
 
-**Codex + Filesystem MCP Server**
+## Codex + Filesystem MCP Server
 
 Exploración · Lectura/Escritura · Búsqueda · Edición · Auditoría de Proyectos
 
@@ -38,7 +38,7 @@ Este módulo enseña a configurar el Filesystem MCP Server con Codex, aplicar el
 ## 2. Objetivos de aprendizaje
 
 | # | Objetivo | Evidencia de logro |
-|---|----------|-------------------|
+| --- | --- | --- |
 | O1 | Explicar el Filesystem MCP Server (tools, access control, anotaciones) y su valor respecto al acceso nativo de Codex al workspace. | Diagrama correcto del flujo Codex → MCP → filesystem externo. |
 | O2 | Configurar el servidor MCP de filesystem conectado a Codex CLI de forma reproducible, con directorios permitidos explícitos. | `codex mcp list` muestra el servidor activo. |
 | O3 | Usar las 13 tools del servidor para explorar, leer, buscar, escribir y editar ficheros en directorios permitidos. | Operaciones verificadas en los 3 laboratorios. |
@@ -69,7 +69,7 @@ En este ejemplo, Codex solo puede acceder a `/tmp/codex-lab-fs/workspace` y `/tm
 Codex ya puede leer y escribir ficheros en su workspace. ¿Por qué añadir un servidor MCP de filesystem?
 
 | Escenario | Acceso nativo Codex | Filesystem MCP |
-|-----------|-------------------|----------------|
+| --- | --- | --- |
 | Ficheros dentro del workspace actual | ✅ Sí, directo | Innecesario |
 | Documentación compartida en otro directorio | ❌ No accesible | ✅ Configurable |
 | Repositorio de referencia adyacente | ❌ No accesible | ✅ Read-only posible |
@@ -84,7 +84,7 @@ El valor principal es el **acceso controlado a directorios externos al workspace
 #### Tools de lectura (read-only)
 
 | Tool | Descripción | Parámetros |
-|------|-------------|-----------|
+| --- | --- | --- |
 | `read_text_file` | Lee contenido completo de un fichero de texto (UTF-8). | `path` (string) |
 | `read_media_file` | Lee un fichero binario/media y devuelve contenido base64. | `path` (string) |
 | `read_multiple_files` | Lee múltiples ficheros simultáneamente. Si uno falla, los demás continúan. | `paths` (string[]) |
@@ -98,7 +98,7 @@ El valor principal es el **acceso controlado a directorios externos al workspace
 #### Tools de escritura
 
 | Tool | readOnly | idempotent | destructive | Descripción |
-|------|----------|-----------|------------|-------------|
+| --- | --- | --- | --- | --- |
 | `create_directory` | false | true | false | Crea directorio (recursivo). Repetir es no-op. |
 | `write_file` | false | true | true | Crea fichero nuevo o **sobreescribe** existente. |
 | `edit_file` | false | false | true | Edición quirúrgica: busca y reemplaza texto dentro de un fichero. |
@@ -541,7 +541,7 @@ Genera docs/audit-executive-summary.md con:
 #### Verificación L-FS-1
 
 | Verificación | Resultado esperado |
-|-------------|-------------------|
+| --- | --- |
 | `codex mcp list` | filesystem_audit activo, disabled_tools aplicados |
 | `docs/audit-structure.md` | Árbol completo, observaciones sobre estructura |
 | `docs/audit-findings.md` | Hallazgos clasificados CRITICAL/HIGH/MEDIUM/LOW |
@@ -794,7 +794,7 @@ Usando las tools de my_service (read/write):
 #### Verificación L-FS-2
 
 | Verificación | Resultado esperado |
-|-------------|-------------------|
+| --- | --- |
 | `codex mcp list` | shared_lib (read-only) + my_service (read/write) activos |
 | `docs/shared-lib-api.md` | API mapeada: auth, validation, logging con funciones y parámetros |
 | `docs/import-fix-plan.md` | Tabla import-incorrecto → import-correcto para cada fichero |
@@ -1141,7 +1141,7 @@ Genera vía output_docs (write_file):
 #### Verificación L-FS-3
 
 | Verificación | Resultado esperado |
-|-------------|-------------------|
+| --- | --- |
 | `codex mcp list` | source_code (read-only) + output_docs (read/write) activos |
 | `output-docs/architecture.md` | Diagrama de capas, dependencias, tecnologías |
 | `output-docs/api-reference.md` | Todos los endpoints con params, body, respuestas, auth |
@@ -1169,7 +1169,7 @@ ls /tmp/codex-lab-fs 2>/dev/null \
 ## 8. Resumen y conceptos clave
 
 | Concepto | Detalle |
-|---------|---------|
+| --- | --- |
 | Filesystem MCP Server | `@modelcontextprotocol/server-filesystem`: acceso controlado al filesystem via MCP. |
 | Directorios permitidos | Se pasan como argumentos al arrancar. Todo path fuera es rechazado. |
 | 9 tools read-only | `read_text_file`, `read_media_file`, `read_multiple_files`, `list_directory`, `list_directory_with_sizes`, `directory_tree`, `search_files`, `get_file_info`, `list_allowed_directories`. |
