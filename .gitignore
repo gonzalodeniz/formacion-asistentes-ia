@@ -1,3 +1,6 @@
+# Gitignore para el repositorio de
+skills/andrej-karpathy-skills
+
 # Entornos virtuales de Python
 venv/
 env/
